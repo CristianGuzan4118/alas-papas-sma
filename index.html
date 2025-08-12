@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control de Ingresos y Egresos</title>
+<title>Alas Papas - Control de Ingresos y Egresos</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
 <style>
@@ -14,9 +13,17 @@
         margin: 0;
         padding: 0;
     }
+    header {
+        background: linear-gradient(135deg, #ff9800, #ff5722);
+        padding: 20px;
+        color: white;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+    }
     .login-container, .main-container {
-        max-width: 800px;
-        margin: 50px auto;
+        max-width: 900px;
+        margin: 40px auto;
         background: white;
         padding: 20px;
         border-radius: 10px;
@@ -37,6 +44,7 @@
         background: #007bff;
         color: white;
         cursor: pointer;
+        transition: 0.3s;
     }
     button:hover {
         background: #0056b3;
@@ -55,9 +63,22 @@
         background: #007bff;
         color: white;
     }
+    .charts-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        margin-top: 20px;
+    }
+    .chart-box {
+        width: 45%;
+        min-width: 300px;
+        margin-top: 20px;
+    }
 </style>
 </head>
 <body>
+
+<header>💼 Alas Papas - Control Financiero</header>
 
 <div class="login-container" id="loginDiv">
     <h2>Iniciar Sesión</h2>
@@ -66,7 +87,7 @@
 </div>
 
 <div class="main-container" id="mainDiv" style="display:none;">
-    <h2>Control de Ingresos y Egresos</h2>
+    <h2>Registro de Ingresos y Egresos</h2>
     <select id="tipo">
         <option value="Ingreso">Ingreso</option>
         <option value="Egreso">Egreso</option>
@@ -89,11 +110,19 @@
         <tbody id="tablaRegistros"></tbody>
     </table>
 
-    <canvas id="grafico" style="margin-top:20px;"></canvas>
+    <div class="charts-container">
+        <div class="chart-box">
+            <canvas id="graficoPie"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="graficoBarras"></canvas>
+        </div>
+    </div>
 </div>
 
 <script>
 let registros = JSON.parse(localStorage.getItem("registros")) || [];
+let chartPie, chartBar;
 
 function login() {
     let pass = document.getElementById("password").value;
@@ -101,7 +130,7 @@ function login() {
         document.getElementById("loginDiv").style.display = "none";
         document.getElementById("mainDiv").style.display = "block";
         mostrarRegistros();
-        actualizarGrafico();
+        actualizarGraficos();
     } else {
         alert("Contraseña incorrecta");
     }
@@ -121,7 +150,7 @@ function agregarRegistro() {
     registros.push({ tipo, monto, fecha, descripcion });
     localStorage.setItem("registros", JSON.stringify(registros));
     mostrarRegistros();
-    actualizarGrafico();
+    actualizarGraficos();
 }
 
 function mostrarRegistros() {
@@ -137,11 +166,13 @@ function mostrarRegistros() {
     });
 }
 
-function actualizarGrafico() {
+function actualizarGraficos() {
     let ingresos = registros.filter(r => r.tipo === "Ingreso").reduce((acc, r) => acc + r.monto, 0);
     let egresos = registros.filter(r => r.tipo === "Egreso").reduce((acc, r) => acc + r.monto, 0);
 
-    new Chart(document.getElementById("grafico"), {
+    // Gráfico de torta
+    if(chartPie) chartPie.destroy();
+    chartPie = new Chart(document.getElementById("graficoPie"), {
         type: "pie",
         data: {
             labels: ["Ingresos", "Egresos"],
@@ -150,6 +181,32 @@ function actualizarGrafico() {
                 backgroundColor: ["#28a745", "#dc3545"]
             }]
         }
+    });
+
+    // Gráfico de barras por mes
+    let datosPorMes = {};
+    registros.forEach(r => {
+        let mes = r.fecha.slice(0,7);
+        if(!datosPorMes[mes]) datosPorMes[mes] = { ingresos: 0, egresos: 0 };
+        if(r.tipo === "Ingreso") datosPorMes[mes].ingresos += r.monto;
+        else datosPorMes[mes].egresos += r.monto;
+    });
+
+    let meses = Object.keys(datosPorMes);
+    let ingresosMes = meses.map(m => datosPorMes[m].ingresos);
+    let egresosMes = meses.map(m => datosPorMes[m].egresos);
+
+    if(chartBar) chartBar.destroy();
+    chartBar = new Chart(document.getElementById("graficoBarras"), {
+        type: "bar",
+        data: {
+            labels: meses,
+            datasets: [
+                { label: "Ingresos", data: ingresosMes, backgroundColor: "#28a745" },
+                { label: "Egresos", data: egresosMes, backgroundColor: "#dc3545" }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
 }
 

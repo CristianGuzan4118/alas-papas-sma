@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Alas Papas - Registro Financiero</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { text-align: center; }
+    input, button, select { margin: 5px; padding: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    table, th, td { border: 1px solid #ccc; padding: 8px; }
+    th { background: #f4f4f4; }
+    .filtros { margin: 15px 0; }
+</style>
+</head>
+<body>
+
+<h1>📊 Alas Papas - Registro de Ingresos y Egresos</h1>
+
+<div id="login">
+    <input type="password" id="password" placeholder="Contraseña">
+    <button onclick="login()">Entrar</button>
+</div>
+
+<div id="app" style="display:none;">
+    <h2>Nuevo Movimiento</h2>
+    <input type="text" id="descripcion" placeholder="Descripción">
+    <input type="number" id="monto" placeholder="Monto">
+    <select id="tipo">
+        <option value="ingreso">Ingreso</option>
+        <option value="egreso">Egreso</option>
+    </select>
+    <button onclick="agregarMovimiento()">Agregar</button>
+    <button onclick="exportarExcel()">Exportar a Excel</button>
+
+    <div class="filtros">
+        <label>Mes:</label>
+        <select id="filtroMes" onchange="mostrarMovimientos()"></select>
+        <label>Año:</label>
+        <select id="filtroAnio" onchange="mostrarMovimientos()"></select>
+    </div>
+
+    <h2>Historial</h2>
+    <table id="tabla">
+        <tr>
+            <th>Fecha</th>
+            <th>Descripción</th>
+            <th>Monto</th>
+            <th>Tipo</th>
+        </tr>
+    </table>
+
+    <h2>Gráficos</h2>
+    <canvas id="grafico"></canvas>
+</div>
+
+<script>
+const PASSWORD = "micontraseña"; // 🔒 Cambia esto
+let movimientos = JSON.parse(localStorage.getItem("movimientos")) || [];
+let chart;
+
+function login(){
+    const pass = document.getElementById("password").value;
+    if(pass === PASSWORD){
+        document.getElementById("login").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        cargarFiltros();
+        mostrarMovimientos();
+    } else {
+        alert("Contraseña incorrecta");
+    }
+}
+
+function agregarMovimiento(){
+    const descripcion = document.getElementById("descripcion").value.trim();
+    const monto = parseFloat(document.getElementById("monto").value);
+    const tipo = document.getElementById("tipo").value;
+    const fecha = new Date().toISOString().split("T")[0];
+    
+    if(descripcion && monto){
+        movimientos.push({fecha, descripcion, monto, tipo});
+        localStorage.setItem("movimientos", JSON.stringify(movimientos));
+        document.getElementById("descripcion").value = "";
+        document.getElementById("monto").value = "";
+        mostrarMovimientos();
+    }
+}
+
+function cargarFiltros(){
+    const mesSelect = document.getElementById("filtroMes");
+    const anioSelect = document.getElementById("filtroAnio");
+    mesSelect.innerHTML = `<option value="">Todos</option>`;
+    anioSelect.innerHTML = `<option value="">Todos</option>`;
+
+    const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    meses.forEach((mes, i) => {
+        mesSelect.innerHTML += `<option value="${i+1}">${mes}</option>`;
+    });
+
+    const anios = [...new Set(movimientos.map(m => m.fecha.split("-")[0]))];
+    anios.sort().forEach(anio => {
+        anioSelect.innerHTML += `<option value="${anio}">${anio}</option>`;
+    });
+}
+
+function mostrarMovimientos(){
+    const tabla = document.getElementById("tabla");
+    tabla.innerHTML = "<tr><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Tipo</th></tr>";
+
+    const mesFiltro = document.getElementById("filtroMes").value;
+    const anioFiltro = document.getElementById("filtroAnio").value;
+
+    let filtrados = movimientos;
+    if(mesFiltro) filtrados = filtrados.filter(m => parseInt(m.fecha.split("-")[1]) == mesFiltro);
+    if(anioFiltro) filtrados = filtrados.filter(m => m.fecha.split("-")[0] == anioFiltro);
+
+    filtrados.forEach(m => {
+        tabla.innerHTML += `<tr>
+            <td>${m.fecha}</td>
+            <td>${m.descripcion}</td>
+            <td>${m.monto}</td>
+            <td>${m.tipo}</td>
+        </tr>`;
+    });
+
+    cargarFiltros();
+    actualizarGrafico(filtrados);
+}
+
+function actualizarGrafico(data){
+    const ingresos = data.filter(m => m.tipo === "ingreso").reduce((a,b) => a + b.monto, 0);
+    const egresos = data.filter(m => m.tipo === "egreso").reduce((a,b) => a + b.monto, 0);
+
+    if(chart) chart.destroy();
+    chart = new Chart(document.getElementById("grafico"), {
+        type: "pie",
+        data: {
+            labels: ["Ingresos", "Egresos"],
+            datasets: [{
+                data: [ingresos, egresos],
+                backgroundColor: ["#4CAF50", "#F44336"]
+            }]
+        }
+    });
+}
+
+function exportarExcel(){
+    const ws = XLSX.utils.json_to_sheet(movimientos);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+    XLSX.writeFile(wb, "movimientos.xlsx");
+}
+</script>
+
+</body>
+</html>

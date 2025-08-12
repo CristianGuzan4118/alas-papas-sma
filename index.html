@@ -1,156 +1,163 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Alas Papas - Registro Financiero</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Ingresos y Egresos</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
 <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { text-align: center; }
-    input, button, select { margin: 5px; padding: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    table, th, td { border: 1px solid #ccc; padding: 8px; }
-    th { background: #f4f4f4; }
-    .filtros { margin: 15px 0; }
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f3f4f6;
+        margin: 0;
+        padding: 0;
+    }
+    .login-container, .main-container {
+        max-width: 800px;
+        margin: 50px auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 15px rgba(0,0,0,0.1);
+    }
+    h2 {
+        text-align: center;
+        color: #333;
+    }
+    input, select, button {
+        padding: 10px;
+        margin: 5px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        width: calc(100% - 22px);
+    }
+    button {
+        background: #007bff;
+        color: white;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #0056b3;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+    }
+    th {
+        background: #007bff;
+        color: white;
+    }
 </style>
 </head>
 <body>
 
-<h1>📊 Alas Papas - Registro de Ingresos y Egresos</h1>
-
-<div id="login">
+<div class="login-container" id="loginDiv">
+    <h2>Iniciar Sesión</h2>
     <input type="password" id="password" placeholder="Contraseña">
     <button onclick="login()">Entrar</button>
 </div>
 
-<div id="app" style="display:none;">
-    <h2>Nuevo Movimiento</h2>
-    <input type="text" id="descripcion" placeholder="Descripción">
-    <input type="number" id="monto" placeholder="Monto">
+<div class="main-container" id="mainDiv" style="display:none;">
+    <h2>Control de Ingresos y Egresos</h2>
     <select id="tipo">
-        <option value="ingreso">Ingreso</option>
-        <option value="egreso">Egreso</option>
+        <option value="Ingreso">Ingreso</option>
+        <option value="Egreso">Egreso</option>
     </select>
-    <button onclick="agregarMovimiento()">Agregar</button>
+    <input type="number" id="monto" placeholder="Monto">
+    <input type="date" id="fecha">
+    <input type="text" id="descripcion" placeholder="Descripción">
+    <button onclick="agregarRegistro()">Agregar</button>
     <button onclick="exportarExcel()">Exportar a Excel</button>
 
-    <div class="filtros">
-        <label>Mes:</label>
-        <select id="filtroMes" onchange="mostrarMovimientos()"></select>
-        <label>Año:</label>
-        <select id="filtroAnio" onchange="mostrarMovimientos()"></select>
-    </div>
-
-    <h2>Historial</h2>
-    <table id="tabla">
-        <tr>
-            <th>Fecha</th>
-            <th>Descripción</th>
-            <th>Monto</th>
-            <th>Tipo</th>
-        </tr>
+    <table>
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Monto</th>
+                <th>Fecha</th>
+                <th>Descripción</th>
+            </tr>
+        </thead>
+        <tbody id="tablaRegistros"></tbody>
     </table>
 
-    <h2>Gráficos</h2>
-    <canvas id="grafico"></canvas>
+    <canvas id="grafico" style="margin-top:20px;"></canvas>
 </div>
 
 <script>
-const PASSWORD = "micontraseña"; // 🔒 Cambia esto
-let movimientos = JSON.parse(localStorage.getItem("movimientos")) || [];
-let chart;
+let registros = JSON.parse(localStorage.getItem("registros")) || [];
 
-function login(){
-    const pass = document.getElementById("password").value;
-    if(pass === PASSWORD){
-        document.getElementById("login").style.display = "none";
-        document.getElementById("app").style.display = "block";
-        cargarFiltros();
-        mostrarMovimientos();
+function login() {
+    let pass = document.getElementById("password").value;
+    if(pass === "admin") {
+        document.getElementById("loginDiv").style.display = "none";
+        document.getElementById("mainDiv").style.display = "block";
+        mostrarRegistros();
+        actualizarGrafico();
     } else {
         alert("Contraseña incorrecta");
     }
 }
 
-function agregarMovimiento(){
-    const descripcion = document.getElementById("descripcion").value.trim();
-    const monto = parseFloat(document.getElementById("monto").value);
-    const tipo = document.getElementById("tipo").value;
-    const fecha = new Date().toISOString().split("T")[0];
-    
-    if(descripcion && monto){
-        movimientos.push({fecha, descripcion, monto, tipo});
-        localStorage.setItem("movimientos", JSON.stringify(movimientos));
-        document.getElementById("descripcion").value = "";
-        document.getElementById("monto").value = "";
-        mostrarMovimientos();
+function agregarRegistro() {
+    let tipo = document.getElementById("tipo").value;
+    let monto = parseFloat(document.getElementById("monto").value);
+    let fecha = document.getElementById("fecha").value;
+    let descripcion = document.getElementById("descripcion").value;
+
+    if(!monto || !fecha || !descripcion) {
+        alert("Todos los campos son obligatorios");
+        return;
     }
+
+    registros.push({ tipo, monto, fecha, descripcion });
+    localStorage.setItem("registros", JSON.stringify(registros));
+    mostrarRegistros();
+    actualizarGrafico();
 }
 
-function cargarFiltros(){
-    const mesSelect = document.getElementById("filtroMes");
-    const anioSelect = document.getElementById("filtroAnio");
-    mesSelect.innerHTML = `<option value="">Todos</option>`;
-    anioSelect.innerHTML = `<option value="">Todos</option>`;
-
-    const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-    meses.forEach((mes, i) => {
-        mesSelect.innerHTML += `<option value="${i+1}">${mes}</option>`;
-    });
-
-    const anios = [...new Set(movimientos.map(m => m.fecha.split("-")[0]))];
-    anios.sort().forEach(anio => {
-        anioSelect.innerHTML += `<option value="${anio}">${anio}</option>`;
-    });
-}
-
-function mostrarMovimientos(){
-    const tabla = document.getElementById("tabla");
-    tabla.innerHTML = "<tr><th>Fecha</th><th>Descripción</th><th>Monto</th><th>Tipo</th></tr>";
-
-    const mesFiltro = document.getElementById("filtroMes").value;
-    const anioFiltro = document.getElementById("filtroAnio").value;
-
-    let filtrados = movimientos;
-    if(mesFiltro) filtrados = filtrados.filter(m => parseInt(m.fecha.split("-")[1]) == mesFiltro);
-    if(anioFiltro) filtrados = filtrados.filter(m => m.fecha.split("-")[0] == anioFiltro);
-
-    filtrados.forEach(m => {
+function mostrarRegistros() {
+    let tabla = document.getElementById("tablaRegistros");
+    tabla.innerHTML = "";
+    registros.forEach(r => {
         tabla.innerHTML += `<tr>
-            <td>${m.fecha}</td>
-            <td>${m.descripcion}</td>
-            <td>${m.monto}</td>
-            <td>${m.tipo}</td>
+            <td>${r.tipo}</td>
+            <td>${r.monto.toFixed(2)}</td>
+            <td>${r.fecha}</td>
+            <td>${r.descripcion}</td>
         </tr>`;
     });
-
-    cargarFiltros();
-    actualizarGrafico(filtrados);
 }
 
-function actualizarGrafico(data){
-    const ingresos = data.filter(m => m.tipo === "ingreso").reduce((a,b) => a + b.monto, 0);
-    const egresos = data.filter(m => m.tipo === "egreso").reduce((a,b) => a + b.monto, 0);
+function actualizarGrafico() {
+    let ingresos = registros.filter(r => r.tipo === "Ingreso").reduce((acc, r) => acc + r.monto, 0);
+    let egresos = registros.filter(r => r.tipo === "Egreso").reduce((acc, r) => acc + r.monto, 0);
 
-    if(chart) chart.destroy();
-    chart = new Chart(document.getElementById("grafico"), {
+    new Chart(document.getElementById("grafico"), {
         type: "pie",
         data: {
             labels: ["Ingresos", "Egresos"],
             datasets: [{
                 data: [ingresos, egresos],
-                backgroundColor: ["#4CAF50", "#F44336"]
+                backgroundColor: ["#28a745", "#dc3545"]
             }]
         }
     });
 }
 
-function exportarExcel(){
-    const ws = XLSX.utils.json_to_sheet(movimientos);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
-    XLSX.writeFile(wb, "movimientos.xlsx");
+function exportarExcel() {
+    let ws = XLSX.utils.json_to_sheet(registros);
+    let wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros");
+    XLSX.writeFile(wb, "registros.xlsx");
 }
 </script>
 
